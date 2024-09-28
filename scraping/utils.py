@@ -159,7 +159,55 @@ def getPlayersData(players_path: str="scraping/player_links.pickle", data_path: 
             print(f"While procesing {player_name} exception occured: {e}")
         
 
-# names, _ = getClubs()
+def getPlayersPosition(links: List[str], path: str="data/positions.csv") -> None:
+    """Get players position from uefa webpage and write to path
+
+    Args:
+        links (List[str]): List of links to the team squads at uefa webpage (from getClubs function)
+        path (str, optional): Path where results will be written to. Defaults to "data/positions.csv".
+    """
+
+    # Load or create dataset
+    if os.path.isfile(path):
+        data = pd.read_csv(path)
+    else:
+        data = pd.DataFrame(columns=['Name', 'Position'])
+        
+    for link in links:
+        try:
+            # Initialize webdriver and get content for a player
+            driver = webdriver.Chrome()
+            driver.get(f"https://www.uefa.com{link}squad/")
+            page_content = driver.page_source
+            driver.quit()
+
+            # Get tables with players on each position
+            soup = BeautifulSoup(page_content, features="html.parser")
+            all_players = soup.find("div", {"class": "pk-col pk-col--span-00-4 pk-col--span-ss-4 pk-col--span-xs-4 pk-col--span-sm-8 pk-col--span-md-12 pk-col--span-lg-12 squad--team-wrap"})
+            players_per_position = all_players.find_all("pk-table-body", {"class": "sc-pk-table sc-pk-table-body-h sc-pk-table-body-s pk-table--body hydrated"})
+
+            # Helper function to extract player names for each position
+            def getPosition(number: int, position: str):    
+                players = players_per_position[number].find_all("pk-table-row", {"class": "row--squadlist sc-pk-table sc-pk-table-body sc-pk-table-row-h sc-pk-table-row-s pk-table--row has-stroke hydrated"})
+                players = [player.find("span", {"itemprop": "name"}).contents[0].strip() for player in players]
+                players = [player for player in players if player[-1] != "*"]
+                return pd.DataFrame({'Name': players, 'Position': [position]*len(players)})
+            
+            goalkeepers = getPosition(0, 'goalkeeper')
+            defenders = getPosition(1, 'defender')
+            midfilders = getPosition(2, 'midfielder')
+            forwards = getPosition(3, 'forward')
+
+            # Save data
+            data = pd.concat([data, goalkeepers, defenders, midfilders, forwards])
+            data.to_csv(path, index=False)
+
+        except Exception as e:
+            print(f"While procesing {link} exception occured: {e}")
+
+
+# names, links = getClubs()
+# getPlayersPosition(links)
 # names = ['Arsenal', 'Aston Villa', 'Atalanta', 'Atleti', 'B. Dortmund', 'Barcelona', 'Bayern München', 'Benfica', 'Bologna', 'Brest', 'Celtic', 'Club Brugge', 'Crvena Zvezda', 'Feyenoord', 'Girona', 'GNK Dinamo', 'Inter', 'Juventus', 'Leipzig', 'Leverkusen', 'Lille', 'Liverpool', 'Man City', 'Milan', 'Monaco', 'Paris', 'PSV', 'Real Madrid', 'S. Bratislava', 'Salzburg', 'Shakhtar', 'Sparta Praha', 'Sporting CP', 'Sturm Graz', 'Stuttgart', 'Young Boys']
 # getWhoScoredLinks(names)
 # getPlayersData()
